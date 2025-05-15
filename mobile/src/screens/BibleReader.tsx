@@ -1,6 +1,6 @@
 // src/screens/BibleReader.tsx
-import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, ActivityIndicator, TouchableOpacity } from 'react-native';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { View, Text, StyleSheet, ScrollView, ActivityIndicator, TouchableOpacity, Dimensions } from 'react-native';
 import { RouteProp, useRoute } from '@react-navigation/native';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
@@ -14,37 +14,43 @@ type BibleReaderRouteProp = RouteProp<RootStackParamList, 'BibleReader'>;
 const BibleReaderScreen = () => {
   const route = useRoute<BibleReaderRouteProp>();
   const navigation = useNavigation<StackNavigationProp<RootStackParamList>>();
-  
+  const [scrollProgress, setScrollProgress] = useState(0);
+  const scrollViewRef = useRef<ScrollView>(null);
+
   // Get params or use defaults
-  const { book = 'GEN', chapter = 1 } = route.params || {};
-  
+  const { book = '', chapter = NaN } = route.params || {};
+
   const [chapterData, setChapterData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
   const [bookName, setBookName] = useState('');
   const [isPlaying, setIsPlaying] = useState(false);
-  
+
+  // Handle scroll event
+  const handleScroll = (event: any) => {
+    const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
+    const scrollProgress = contentOffset.y / (contentSize.height - layoutMeasurement.height);
+    setScrollProgress(Math.max(0, Math.min(1, scrollProgress)));
+  };
+
   // Memoize the fetch function to avoid recreating it on each render
   const fetchChapter = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
-      
+
       const data = await getChapter(book, chapter);
       setChapterData(data);
-      
-      // Format the book name (remove dashes, capitalize)
-      setBookName(book.split('-').map(word => 
-        word.charAt(0).toUpperCase() + word.slice(1)
-      ).join(' '));
-      
+
+      // Format the book name (uncomment and fix this)
+      setBookName(book.includes('GEN') ? 'Genesis' : book);
     } catch (err) {
       setError(err as Error);
     } finally {
       setLoading(false);
     }
   }, [book, chapter]);
-  
+
   // Only run the fetch when component mounts or book/chapter changes
   useEffect(() => {
     fetchChapter();
@@ -65,6 +71,7 @@ const BibleReaderScreen = () => {
   // Toggle audio playback
   const togglePlayback = () => {
     setIsPlaying(!isPlaying);
+    // TODO: 
     // Audio playback logic would go here
   };
 
@@ -91,62 +98,72 @@ const BibleReaderScreen = () => {
     <View style={styles.container}>
       <View style={styles.header}>
         <View style={styles.bookInfoContainer}>
-          <Text style={styles.bookTitle}>{book}</Text>
-          <Text style={styles.chapterTitle}>Chapter {chapter}</Text>
+          <Text style={styles.bookTitle}>{bookName || book} Chapter {chapter}</Text>
         </View>
-        
+
         <View style={styles.audioControls}>
           <TouchableOpacity style={styles.audioButton}>
             <Ionicons name="play-back" size={20} color={colors.primaryText} />
           </TouchableOpacity>
-          
+
           <TouchableOpacity style={styles.audioButton} onPress={togglePlayback}>
-            <Ionicons 
-              name={isPlaying ? "pause" : "play"} 
-              size={20} 
-              color={colors.primaryText} 
+            <Ionicons
+              name={isPlaying ? "pause" : "play"}
+              size={20}
+              color={colors.primaryText}
             />
           </TouchableOpacity>
-          
+
           <TouchableOpacity style={styles.audioButton}>
             <Ionicons name="play-forward" size={20} color={colors.primaryText} />
           </TouchableOpacity>
         </View>
       </View>
-      
-      <ScrollView style={styles.content}>
+
+      <View style={styles.progressBarContainer}>
+        <View style={[styles.progressBar, { width: `${scrollProgress * 100}%` }]} />
+      </View>
+
+
+      <ScrollView
+        ref={scrollViewRef}
+        style={styles.content}
+        onScroll={handleScroll}
+        scrollEventThrottle={16}
+        showsVerticalScrollIndicator={false}
+      >
         {chapterData?.verses?.map((verseItem: any) => (
           <View key={verseItem.number} style={styles.verseContainer}>
             <Text style={styles.verseNumber}>{verseItem.number}</Text>
             <Text style={styles.verseText}>{verseItem.text}</Text>
           </View>
         ))}
-        
+
         {(!chapterData?.verses || chapterData.verses.length === 0) && (
           <Text style={styles.noContentText}>No verses found for this chapter.</Text>
         )}
       </ScrollView>
-      
+
       <View style={styles.navigationBar}>
-        <TouchableOpacity 
-          style={styles.navButton} 
+        <TouchableOpacity
+          style={styles.navButton}
           onPress={goToPreviousChapter}
           disabled={chapter <= 1}
         >
           <View style={styles.circleButton}>
-            <Ionicons 
-              name="chevron-back" 
-              size={24} 
-              color={colors.primaryText} 
+            <Ionicons
+              name="chevron-back"
+              size={24}
+              color={colors.primaryText}
             />
           </View>
           <Text style={styles.navButtonText}>Previous</Text>
         </TouchableOpacity>
-        
+
         <TouchableOpacity style={styles.bookmarkButton}>
           <Ionicons name="bookmark-outline" size={28} color={colors.accent} />
         </TouchableOpacity>
-        
+
         <TouchableOpacity style={styles.navButton} onPress={goToNextChapter}>
           <Text style={styles.navButtonText}>Next</Text>
           <View style={styles.circleButton}>
@@ -223,6 +240,15 @@ const styles = StyleSheet.create({
     marginLeft: 10,
     borderWidth: 1,
     borderColor: '#444',
+  },
+  progressBarContainer: {
+    height: 3,
+    backgroundColor: '#333333',
+    width: '100%',
+  },
+  progressBar: {
+    height: '100%',
+    backgroundColor: colors.accent,
   },
   content: {
     flex: 1,

@@ -26,15 +26,15 @@ export const getBibleVersions = async () => {
 export const getBooks = async (bibleId = DEFAULT_BIBLE_ID) => {
   try {
     const response = await bibleApi.get(`/bibles/${bibleId}/books`);
-    
+
     const books: BibleBook[] = [];
-    
+
     for (const book of response.data.data) {
       try {
         const bookDetails = await bibleApi.get(
           `/bibles/${bibleId}/books/${book.id}/chapters`
         );
-        
+
         books.push({
           id: book.id,
           name: book.name,
@@ -51,7 +51,7 @@ export const getBooks = async (bibleId = DEFAULT_BIBLE_ID) => {
         });
       }
     }
-    
+
     return books;
   } catch (error) {
     console.error('Error fetching Bible books:', error);
@@ -66,24 +66,23 @@ export const getChapter = async (
   bibleId = DEFAULT_BIBLE_ID
 ) => {
   try {
-    // First try the chapter endpoint
+    // Get chapter data
     const response = await bibleApi.get(
       `/bibles/${bibleId}/chapters/${bookId}.${chapterNumber}`
     );
     
-    // Parse content
-    const chapterData = response.data.data;
+    // Parse HTML content from the chapter response
+    const htmlContent = response.data.data.content;
+    const verseRegex = /<span data-number="(\d+)"[^>]*class="v"[^>]*>(\d+)<\/span>([^<]*)/g;
     
-    // We need to get the content, which is a separate call
-    const contentResponse = await bibleApi.get(
-      `/bibles/${bibleId}/chapters/${bookId}.${chapterNumber}/verses`
-    );
-    
-    // Format verses
-    const verses = contentResponse.data.data.map((v: any) => ({
-      number: parseInt(v.id.split('.')[2]),
-      text: v.content
-    }));
+    const verses = [];
+    let match;
+    while ((match = verseRegex.exec(htmlContent)) !== null) {
+      verses.push({
+        number: parseInt(match[1]),
+        text: match[3].trim()
+      });
+    }
     
     return {
       number: chapterNumber,
