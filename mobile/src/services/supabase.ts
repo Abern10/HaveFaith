@@ -3,9 +3,6 @@ import { createClient } from '@supabase/supabase-js';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {SUPABASE_URL, SUPABASE_KEY} from '@env';
 
-const supabaseUrl = '';
-const supabaseKey = '';
-
 const AsyncStorageWrapper = {
   getItem: async (key: string) => {
     return await AsyncStorage.getItem(key);
